@@ -41,6 +41,7 @@ INT32 main(INT32 argc, CHAR* argv[])
     pSampleConfiguration->videoSource = sendVideoPackets;
     pSampleConfiguration->receiveAudioVideoSource = sampleReceiveAudioFrame;
     pSampleConfiguration->onDataChannel = onDataChannel;
+    pSampleConfiguration->getRtcStats = getPeriodicIceCandidatePairStats;
     pSampleConfiguration->mediaType = SAMPLE_STREAMING_AUDIO_VIDEO;
     printf("[KVS Master] Finished setting audio and video handlers\n");
 
