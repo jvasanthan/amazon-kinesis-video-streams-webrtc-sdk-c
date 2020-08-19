@@ -61,6 +61,11 @@ typedef struct {
     startRoutine receiveAudioVideoSource;
     RtcOnDataChannel onDataChannel;
 
+    TID signalingProcessor;
+    PStackQueue pSignalingMessageQueue;
+    PHashTable pPendingSignalingMessageForRemoteClient;
+    PHashTable pRtcPeerConnectionForRemoteClient;
+
     MUTEX sampleConfigurationObjLock;
     CVAR cvar;
     BOOL trickleIce;
@@ -80,7 +85,6 @@ struct __SampleStreamingSession {
     volatile ATOMIC_BOOL terminateFlag;
     volatile ATOMIC_BOOL candidateGatheringDone;
     volatile ATOMIC_BOOL peerIdReceived;
-    volatile ATOMIC_BOOL sdpOfferAnswerExchanged;
     volatile SIZE_T frameIndex;
     PRtcPeerConnection pPeerConnection;
     PRtcRtpTransceiver pVideoRtcRtpTransceiver;
@@ -92,6 +96,7 @@ struct __SampleStreamingSession {
     CHAR peerId[MAX_SIGNALING_CLIENT_ID_LEN + 1];
     TID receiveAudioVideoSenderTid;
     UINT64 firstSdpMsgReceiveTime;
+    BOOL remoteCanTrickleIce;
 
     // this is called when the SampleStreamingSession is being freed
     StreamSessionShutdownCallback shutdownCallback;
@@ -106,9 +111,8 @@ PVOID sendGstreamerAudioVideo(PVOID);
 PVOID sampleReceiveAudioFrame(PVOID args);
 STATUS createSampleConfiguration(PCHAR, SIGNALING_CHANNEL_ROLE_TYPE, BOOL, BOOL, PSampleConfiguration*);
 STATUS freeSampleConfiguration(PSampleConfiguration*);
-STATUS viewerMessageReceived(UINT64, PReceivedSignalingMessage);
 STATUS signalingClientStateChanged(UINT64, SIGNALING_CLIENT_STATE);
-STATUS masterMessageReceived(UINT64, PReceivedSignalingMessage);
+STATUS signalingMessageReceived(UINT64 customData, PReceivedSignalingMessage pReceivedSignalingMessage);
 STATUS handleAnswer(PSampleConfiguration, PSampleStreamingSession, PSignalingMessage);
 STATUS handleOffer(PSampleConfiguration, PSampleStreamingSession, PSignalingMessage);
 STATUS handleRemoteCandidate(PSampleStreamingSession, PSignalingMessage);
@@ -127,6 +131,7 @@ STATUS sessionCleanupWait(PSampleConfiguration);
 STATUS awaitGetIceConfigInfoCount(SIGNALING_CLIENT_HANDLE, PUINT32);
 STATUS logSignalingClientStats(PSignalingClientMetrics);
 STATUS logSelectedIceCandidatesInformation(PSampleStreamingSession);
+PVOID signalingProcessingRoutine(PVOID args);
 
 #ifdef __cplusplus
 }
