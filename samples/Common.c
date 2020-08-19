@@ -583,6 +583,7 @@ STATUS createSampleConfiguration(PCHAR channelName, SIGNALING_CHANNEL_ROLE_TYPE 
     pSampleConfiguration->signalingClientHandle = INVALID_SIGNALING_CLIENT_HANDLE_VALUE;
     pSampleConfiguration->sampleConfigurationObjLock = MUTEX_CREATE(TRUE);
     pSampleConfiguration->cvar = CVAR_CREATE();
+    pSampleConfiguration->streamingSessionListReadLock = MUTEX_CREATE(FALSE);
     /* This is ignored for master. Master can extract the info from offer. Viewer has to know if peer can trickle or
      * not ahead of time. */
     pSampleConfiguration->trickleIce = trickleIce;
@@ -713,6 +714,10 @@ STATUS freeSampleConfiguration(PSampleConfiguration* ppSampleConfiguration)
         MUTEX_FREE(pSampleConfiguration->sampleConfigurationObjLock);
     }
 
+    if (IS_VALID_MUTEX_VALUE(pSampleConfiguration->streamingSessionListReadLock)) {
+        MUTEX_FREE(pSampleConfiguration->streamingSessionListReadLock);
+    }
+
     if (IS_VALID_CVAR_VALUE(pSampleConfiguration->cvar)) {
         CVAR_FREE(pSampleConfiguration->cvar);
     }
@@ -747,20 +752,16 @@ STATUS sessionCleanupWait(PSampleConfiguration pSampleConfiguration)
             if (ATOMIC_LOAD_BOOL(&pSampleConfiguration->sampleStreamingSessionList[i]->terminateFlag)) {
                 pSampleStreamingSession = pSampleConfiguration->sampleStreamingSessionList[i];
 
+                MUTEX_LOCK(pSampleConfiguration->streamingSessionListReadLock);
+
                 // swap with last element and decrement count
                 pSampleConfiguration->streamingSessionCount--;
                 pSampleConfiguration->sampleStreamingSessionList[i] =
                     pSampleConfiguration->sampleStreamingSessionList[pSampleConfiguration->streamingSessionCount];
 
-                // unlock here to avoid blocking media pipeline thread because freeSampleStreamingSession can take some
-                // time.
-                MUTEX_UNLOCK(pSampleConfiguration->sampleConfigurationObjLock);
-                locked = FALSE;
+                MUTEX_UNLOCK(pSampleConfiguration->streamingSessionListReadLock);
 
                 CHK_STATUS(freeSampleStreamingSession(&pSampleStreamingSession));
-
-                MUTEX_LOCK(pSampleConfiguration->sampleConfigurationObjLock);
-                locked = TRUE;
             }
         }
 
@@ -881,7 +882,10 @@ PVOID signalingProcessingRoutine(PVOID args)
                     CHK_STATUS(createSampleStreamingSession(pSampleConfiguration, pReceivedSignalingMessage->signalingMessage.peerClientId, TRUE,
                                                             &pSampleStreamingSession));
                     pSampleStreamingSession->firstSdpMsgReceiveTime = GETTIME();
+                    MUTEX_LOCK(pSampleConfiguration->streamingSessionListReadLock);
                     pSampleConfiguration->sampleStreamingSessionList[pSampleConfiguration->streamingSessionCount++] = pSampleStreamingSession;
+                    MUTEX_UNLOCK(pSampleConfiguration->streamingSessionListReadLock);
+
                     CHK_STATUS(handleOffer(pSampleConfiguration, pSampleStreamingSession, &pReceivedSignalingMessage->signalingMessage));
                     MEMFREE(pReceivedSignalingMessage);
                     CHK_STATUS(hashTablePut(pSampleConfiguration->pRtcPeerConnectionForRemoteClient, clientIdHash, (UINT64) pSampleStreamingSession));

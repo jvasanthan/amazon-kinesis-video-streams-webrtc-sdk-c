@@ -235,7 +235,7 @@ PVOID sendVideoPackets(PVOID args)
         encoderStats.targetBitrate = 262000;
         frame.presentationTs += SAMPLE_VIDEO_FRAME_DURATION;
 
-        MUTEX_LOCK(pSampleConfiguration->sampleConfigurationObjLock);
+        MUTEX_LOCK(pSampleConfiguration->streamingSessionListReadLock);
         for (i = 0; i < pSampleConfiguration->streamingSessionCount; ++i) {
             status = writeFrame(pSampleConfiguration->sampleStreamingSessionList[i]->pVideoRtcRtpTransceiver, &frame);
             encoderStats.encodeTimeMsec = 4; // update encode time to an arbitrary number to demonstrate stats update
@@ -246,7 +246,7 @@ PVOID sendVideoPackets(PVOID args)
 #endif
             }
         }
-        MUTEX_UNLOCK(pSampleConfiguration->sampleConfigurationObjLock);
+        MUTEX_UNLOCK(pSampleConfiguration->streamingSessionListReadLock);
 
         // Adjust sleep in the case the sleep itself and writeFrame take longer than expected. Since sleep makes sure that the thread
         // will be paused at least until the given amount, we can assume that there's no too early frame scenario.
@@ -310,14 +310,14 @@ PVOID sendAudioPackets(PVOID args)
 
         frame.presentationTs += SAMPLE_AUDIO_FRAME_DURATION;
 
-        MUTEX_LOCK(pSampleConfiguration->sampleConfigurationObjLock);
+        MUTEX_LOCK(pSampleConfiguration->streamingSessionListReadLock);
         for (i = 0; i < pSampleConfiguration->streamingSessionCount; ++i) {
             status = writeFrame(pSampleConfiguration->sampleStreamingSessionList[i]->pAudioRtcRtpTransceiver, &frame);
             if (status != STATUS_SUCCESS) {
                 printf("writeFrame failed with 0x%08x", status);
             }
         }
-        MUTEX_UNLOCK(pSampleConfiguration->sampleConfigurationObjLock);
+        MUTEX_UNLOCK(pSampleConfiguration->streamingSessionListReadLock);
         THREAD_SLEEP(SAMPLE_AUDIO_FRAME_DURATION);
     }
 
